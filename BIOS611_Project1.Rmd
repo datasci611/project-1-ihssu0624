@@ -1,0 +1,177 @@
+---
+title: "BIOS 611 Project 1"
+author: "I-Hsuan Claire Su"
+date: "09/24/2018"
+output: html_document
+---
+
+##Project Set Up
+Prior to data analysis and visualization, the following code was run to set up the R libraries and datasets required for this project.
+
+```{r, message=FALSE, warning=FALSE}
+##R libraries need for data manipulation and visualization
+library(tidyverse)
+library(ggcorrplot)
+library(reshape2)
+library(plotly)
+library(DescTools)
+
+##R datasets used in this project
+data(msleep)
+data(attitude)
+data(Seatbelts)
+data(WorldPhones)
+```
+
+##I. Relationship Between Mammal Conservation Status and Sleep Behavior
+
+###Background 
+The dataset `msleep` comes from a study conducted by V. M. Savage and G. B. West on a group of mammals and their sleep time. There are 83 observation and 11 variables in this dataset, with each row representing a particular mammal. Variables in the dataset record the common name, genus, diet type, order, conservation status, total hours of sleep, hours of REM sleep, length of sleep cycle, hours awake, and body and brain weight in kilograms of each mammal. 
+
+The question we are hoping to explore is whether there exists differences in sleep behavior between mammals of different conservation status. We further categorized conservation status into the categories "lower risk"" and "threatened"" based on the definition provided in Wikipedia. We looked at sleep behavior by the percentage of hours in REM sleep over total hours of sleep. 
+
+###Data Manipulation
+We performed the following manipulations to create new variables that categorize conservation status and characterize sleep behavior, filter out observation with missing values, and produce visualization to explore our question of interest.
+
+```{r,message=FALSE, warning=FALSE}
+##Transfrom dataset to tibble, create variable risk_level that further categorizes conservation status, rename levels in the variable conservation, and variable that records the percentage of REM sleep over total hours of sleep
+msleep_tib <-msleep %>% 
+  as_tibble %>% 
+  mutate(
+  risk_level = ifelse(conservation %in% c("en", "vu"), "Threatened", 
+                      ifelse(conservation %in% c("cd","domesticated","lc", "nt"),"Lower Risk", "Other")),
+  conservation = plyr::revalue(conservation,c("en"="endangered", "vu"="vulnerable","cd"="conservation dependent","lc"="least concern","nt"="near threatened")),
+  perc_rem = (sleep_rem/sleep_total)*100
+  )
+
+##filter out observations without conservation status
+msleep_tib_for_plot <- msleep_tib %>% filter(!is.na(conservation))
+
+##create plotly box plot that displays the distribution of percentage REM sleep grouped by conservation status and risk level
+plot_perc_rem <- plot_ly(msleep_tib_for_plot, x = ~risk_level, y = ~perc_rem, color = ~conservation, type = "box") %>%
+  layout(title="Percentage of REM Sleep in Mammals Across Conservation Status",
+    xaxis=list(title="Conservation Status Risk Level"),
+    yaxis = list(title="% REM Sleep"),
+    boxmode = "group")
+plot_perc_rem
+```
+
+###Summary
+The figure above visualizes the distribution of percentages of REM sleep in mammals. Each boxplot represents the distribution of REM sleep for mammals in the study of a particulare conservation status, which can be referenced by the colors in the legend. The boxplots are further grouped into the two risk levels ,"Lower Risk" and ""Threatened" for easier comparison. The upper and lower edge of each box represents 25th to 75th quantile and the center line marks the median of the distribution, whereas the whiskers reach out to the minimum and maximum values. 
+
+Since the boxs of the boxplots mostly overlap with each other, it seems that the distributions of REM sleep behavior are fairly similar among mammals of different conservation status. Some patterns worthy of note are that mammals with status "conservation dependent" have the lowest median and 25th quantile in percentage of REM sleep (12.8% and 3.7% respectively), mammals in "least concern" status have the widest distribution in percentage of REM sleep ranging from 7% to 4.7%, and the distribution of mammals that are "endangered" is higher than those of all other groups, with its 25th quantile, median, and 75th quantile being 21.7%,7.7%, and 33.7%. 
+
+It does not seem that we can reach any definite conclusion in how sleep behavior in terms of percentage of REM sleep differ between mammals across conservation statuts. It does seem that endangered mammals might have higher percentages of REM sleep from looking at this dataset. However, since the sample size for endangered mammals is small (only 4), it would be interesting to investigate further whether these differences in distribution hold if each conservation status corresponds to equal number of mammals. There might also be confounding factors that are more directly related to REM sleep, such as brain weight, that should be investigated.
+
+##II. Relationship Between Employee Questionnaire Response and Approval Rating
+
+###Background 
+The dataset `attitude` is taken from questionnaire responses of clerical employees at a financial organization. There are 30 observations and 7 variables in this dataset, corresponding to 30 departments of the organization and responses to the questions in the survey. The questionaire hoped to gauge employee perception on the company through questions related to positive opportunities and the management of negative factors in the work place. The questions asked touched on the following aspects: whether employee complaints are handled appropriately, whether or not special privileges are allowed,  whether there are learning opportunities, whether there are performance-based raises, whether management is too critical of employee, and whether there is room for advancement. Thirty departments were randomly selected to participate and employee responses were aggregated into percentage of favourable response for each question as well as an overall rating for the company.
+
+The question we hope to explore from this dataset is whether there is correlation between overall approval rating and the percentage of favourable response on each of the 6 questions. Are the relationships stronger for certain questions than others? 
+
+###Data Manipulation
+We performed the following manipulations to restructure the data, create a new variable, and produce visualization to explore our question of interest.
+
+```{r, message=FALSE}
+##make dataset a tibble, restructure it from wide to long, and create a variable that group questions to either related to positive of negative factors in the workplace
+attitude_tib <- attitude %>% 
+  as_tibble() %>% 
+  melt(id.vars=c("rating"), measure.vars=c("complaints", "privileges", "learning","raises", "critical","advance")) %>% 
+  mutate(question_category = ifelse(variable %in% c("complaints", "privileges","critical"), "Negative Factors","Positive Factors"))
+
+##create a scatterplot with regression lines of overall rating against the percentage of favourable responses grouped by question
+ggplot(attitude_tib, aes(x=value, y=rating)) + geom_point(aes(color=variable), position="jitter") + geom_smooth(aes(color=variable),method=lm, se=FALSE)+scale_color_manual(name="Question Topic",values=c("#032e70","#609af2","#3e81e8","#1855b2","#a0c3f7","#bcd3f4")) + xlab("% Favourable Response") + ylab("Overall Approval Rating") +ggtitle("Overall Rating against Percentage of Favourable Response \n Across Question Topics")
+
+##create a scatterplot with regression lines of overall rating against the percentage of favourable responses grouped by question type (associated with positive of negative factors)
+ggplot(attitude_tib, aes(x=value, y=rating)) + geom_point(aes(color=question_category), position="jitter") + geom_smooth(aes(color=question_category),method=lm, se=FALSE)+ xlab("% Favourable Response") + ylab("Overall Approval Rating") +scale_color_discrete(name="Question Topic Category")+ggtitle("Overall Rating against Percentage of Favourable Response \n Between Categories of Question Topics")
+  
+```
+
+###Summary:
+The figures above explored the relationship between overall employee ratings of the organization with the percentage of favourable responses on each question in the survey. The percentage of favourable responses on each question are plotted against rating, with a line fitted for each question. Each line represents the relationship between the increase in rating and a percentage increase in favourable response for that question, and the steepness of the slopes show the strength of the relationship. 
+
+In the first figure, we can see that favourable opinion on how the organization handles complaints have the strongest positive relationship followed by opportunities for raises and learning. Whether managment is too critical and advancement opportunities have the weakest relationship with overall rating. If we group the questions into whether they are associated with postivie or negative aspects of the work place, with `complaint`, `critical`, and `privileges` being associated with negative factors. We see that the relationship between overall rating and percentage of favourable responses across the two groups are fairly similar since the lines are almost parallel. Therefore, it does not seem that postive or negative factors positively contribute to ratings more than the other.
+
+Some further questions of interest could be whether the response to some of these questions correlate to each other and whether certain questions contribute to overal ratings more heavily in specific departments. These could help management of the organization target areas to improve on to increase employee approval. 
+
+##III. Trends in Road Casualties Across Seatbelt Policy Implementation
+
+###Background
+The dataset `Seatbelt` records the monthly number of drivers and passengers killed or seriously injured in Great Britain from January, 1969 to December, 1984. It has 192 observation, one representing each month between January, 1969 and December, 1984, and 8 variables. The number drivers, van drivers, front-seat and rear seat passengers killed is recoded for each month. Since the law on compulsory wearing of seat belts was introduced on 31 January, 1983, there is also a variable indicating whether the seatbelt law was in effect at that month. There are also additional variables on distance driven and petrol price. 
+
+We hope to examine the monthly death count patterns of drivers, front-seat, and rear-seat passengers as well as explore the question of whether we observe a drop in death counts after the implementation of the seatbelt law require seatbelts.
+
+###Data Manipulation
+We performed the following manipulations to create new variables to identify the month associate with each row and produce visualization to explore our question of interest.
+
+```{r, message=FALSE}
+##Transform dataset to tibble and create variable to denote the calendar month of each row
+Seatbelts_tib <- Seatbelts %>% 
+  as_tibble %>% 
+  mutate(time_id = row_number(),
+         date_label = AddMonths(as.Date("1jan1969", "%d%b%Y"), time_id-1)
+         )
+
+##create plotly line plot to display death count trends
+seatbelt_plot <- plot_ly(Seatbelts_tib, x = ~date_label, y = ~DriversKilled, name = 'Drivers', type = 'scatter', mode = 'lines')%>%
+  layout(
+    title="Monthly Death Count of Drivers & Passengers\n (Jan 1969-Dec 1983)",
+    xaxis=list(title="Calendar Month (Shaded Area Marks Seatbelt Law in Effect)"),
+    yaxis=list(title="Death Count"),
+    shapes=list(type = "rect",
+                    fillcolor = "lightgrey", 
+                    line = list(color = "lightgrey"), 
+                    opacity = 0.3,
+                    x0 = as.Date("31jan1983", "%d%b%Y"), x1 = as.Date("01dec1984","%d%b%Y"), xref = "x",
+                    y0 = 0, y1 = 1200, yref = "y")) %>%
+  add_trace(y = ~front, name = 'Front-Seat Passenger', mode = 'lines') %>%
+  add_trace(y = ~rear, name = 'Rear-Seat Passenger', mode = 'lines') 
+
+seatbelt_plot
+
+```
+
+###Summary
+From the time trend line plot above, we can see that from January, 1969 to December, 1984, the death count of front-seat passenger remains the highest of mostly over 600, the death count of rear-seat passenger is the lowest of under 200, and the death count of drivers ranges in the middle between 200 and 600. Looking at the trend of front-seat passenger death count, we observe a decrease since the beginning of 1970 and a noticeably sharp drop at the enforcement of the seatbelt policy. Zooming in on the counts of drivers killed, we also see a small decrease at the policy change but a recovery back to levels prior to policy change in 1984. On the other hand, death counts in rear-end passenger decreased in the beginning of 1975 but remained farily constant since then through the point of policy change. 
+
+It seems that the enforcement of seatbelt law is most strongly associated with a decrease in death count for front-seat passengers, but does not seem to be associated strongly with death count patterns of drivers or rear-seat passengers. It would be interesting to formally test the association between the front-seat passenger death count and policy implementation by creating a time series model to test for the significance of the difference in death counts between the observed pattern post-policy implementation and the counterfactual where the policy did not exist. 
+
+##IV. Trends in Phone Accumulation by Continent
+
+###Background
+The `WorldPhones` dataset consists of 7 observation and 8 variables, and records the total number of telephones from 1956 to 1961 in the regions of North, South, Mid-America, Europe, Asia, Oceania, and Africa. We hope to compare the yearly accumulation in telephone counts as well as percentage increase across regions to see if there exists differences between the accumulation pattern in terms of counts and percentages across regions. 
+
+###Data Manipulation
+We performed the following manipulations to filter out observation of a certain year, restructure data from wide to long, create new variables to characterize phone accumulation, sort data by continent and year, and produce visualization to explore our question of interest.
+
+```{r}
+##Make the row names into a variable and transform dataset into tibble
+year_values <- row.names(WorldPhones)
+WorldPhones_tib <- WorldPhones %>% as_tibble 
+WorldPhones_tib$year <- year_values
+WorldPhones_tib <- WorldPhones_tib %>% filter(year!="1951")
+
+##transform dataset from wide to long and create variables to measure phone accumulation
+WorldPhones_tib_long <- WorldPhones_tib %>% melt(
+  id.vars=c("year"), 
+  measure.vars=c("N.Amer","Europe","Asia","S.Amer","Oceania", "Africa","Mid.Amer")
+  ) %>% 
+  arrange(variable,year) %>%
+  mutate(
+    total_per_mil=value/1000,
+    increase = ifelse(year=="1956", 0, value-lag(value)),
+    perc_increase = ifelse(year=="1956", 0, (increase/lag(value))*100)
+  ) %>%
+  plyr::rename(c("variable"="region"))
+
+##create scatter plot on number of telephone across years by region
+ggplot(WorldPhones_tib_long, aes(x=year, y=total_per_mil)) + geom_point(aes(color=region))+ylab("Total Number of Telephones (per million)")+ggtitle("Number of Telephones per Year Across Regions (1956-1961)")
+
+##create stacked bar plot on percentage increase of telephone across years by region
+ggplot(WorldPhones_tib_long, aes(region, perc_increase, fill=year)) +geom_bar(stat="identity")+ylab("Percentage Increase in Telephones")+ggtitle("Yearly Percentage Increase in Telephones Across Regions (1956-1961)")
+
+```
+
+###Summary
+From the first plot, we can see that the number of telephones increases yearly for all regions, with North America and Europe having the highest number of telephon overall. Telephone counts in North America rose from 60 million to 80 million and in Europe from 30 million to above 40 million across the 6-year period, whereas those of the other region stayed below 10 million. However, when we looked at the second plot, we see that Asia saw the greatest percentage increase in telephone counts, with 1958 being the year with the greatest increase of over 20 percent. It is interesting to see that while North America and Europe have the highest number of telephones and increase in counts, Asia and Mid-America experienced the greatest increase in term of percentages. Therefore, there does exists a difference in telephone accumulation across regions when we look at increase in terms of different metrics. It would be interesting to further explore the potential reasons behind the percentage increase of telephone counts in 1958 Asia and whether the accumulation patterns hold after 1961. 
